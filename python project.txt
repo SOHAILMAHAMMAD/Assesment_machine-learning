@@ -1,0 +1,124 @@
+# Initial imports and API setup
+%pip install upstox-python-sdk
+%pip install requests
+%pip install pandas
+import pandas as pd
+import requests
+
+# API credentials and initial setup
+key = "ecb53d92-5776-4bf1-a6fe-fae7181e6311"
+secret = "00000000000"
+url = "https://127.0.0.2"
+url = f'https://api.upstock.com/v2/login/authorization/dialog?response_type-code&clint_id={key}&redirect_url={url}'
+code = "Bkrs-D"
+url = 'htpps://api.upstock.com/v2/login/authorizaton/token'
+
+# Headers and data for token request
+headers = {
+    'accept': 'application/json',
+    'content-Type': 'application/x-www-form-urlencoded'
+}
+data = {
+    'code': code,
+    'client_id': key,
+    'client_secret': secret,
+    'redirect_url': url,
+    'grant_type': 'authorization_code',
+}
+
+# Request for the access token
+response1 = requests.post(url, headers=headers, data=data)
+print(response1.status_code)
+response1.json()
+access = response1.json()['access_token']
+
+# Reading instrument data
+Instrument = pd.read_csv('https://assets.upstox.com/market-auote/instruments/exchange/Nse.csv.gz')
+InstrumentKey = Instrument[Instrument['tradingsymbol'] == 'SAIL']
+InstrumentKey
+
+# Setting up the options chain request
+import requests
+url = 'https://api.upstox.com/v2/options/chain'
+params = {
+    'instrument_key': 'NSE_EQ|INE114A01011',
+    'expiry_date': '2024-07-24'
+}
+headers = {
+    'Accept': 'application/json',
+    'Authorization': f'Bearer {access}'
+}
+
+# Fetching options chain
+response2 = requests.get(url, params=params, headers=headers)
+strike_price = pd.DataFrame(response2.json()['data'])
+pd.set_option('display.width', 1500)
+pd.set_option('display.max_column', None)
+strike_price
+
+# Extracting call and put instrument keys
+call = response2.json()['data'][40]['call_options']['instrument_key']
+put = response2.json()['data'][67]['call_options']['instrument_key']
+
+# Import necessary libraries for calculations
+import json
+
+# Function to calculate the margin required
+def calculate_margin(instrument_key, access_token):
+    url = "https://api.upstox.com/v2/margin"
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Accept': 'application/json'
+    }
+    params = {
+        'instrument_key': instrument_key,
+        'quantity': 1  # Adjust quantity based on your needs
+    }
+    # Requesting margin details from Upstox API
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        margin_data = response.json()
+        margin = margin_data.get('margin', {}).get('total', 0)
+        print(f"Margin Required: {margin}")
+        return margin
+    else:
+        print(f"Error fetching margin details: {response.status_code}")
+        return None
+
+# Function to calculate the premium earned
+def calculate_premium(instrument_key, access_token):
+    url = "https://api.upstox.com/v2/quote"
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Accept': 'application/json'
+    }
+    params = {
+        'instrument_key': instrument_key
+    }
+    # Requesting quote details from Upstox API
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        quote_data = response.json()
+        premium = quote_data.get('last_price', 0)
+        print(f"Premium Earned: {premium}")
+        return premium
+    else:
+        print(f"Error fetching premium details: {response.status_code}")
+        return None
+
+# Using the functions to calculate margin and premium for call and put options
+access_token = access
+call_instrument_key = call
+put_instrument_key = put
+
+# Calculate margin for call and put options
+call_margin = calculate_margin(call_instrument_key, access_token)
+put_margin = calculate_margin(put_instrument_key, access_token)
+
+# Calculate premium earned for call and put options
+call_premium = calculate_premium(call_instrument_key, access_token)
+put_premium = calculate_premium(put_instrument_key, access_token)
+
+# Displaying the results
+print(f"Call Option - Margin: {call_margin}, Premium: {call_premium}")
+print(f"Put Option - Margin: {put_margin}, Premium: {put_premium}")
